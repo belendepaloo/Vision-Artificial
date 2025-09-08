@@ -330,11 +330,6 @@ def _non_degenerate(pts, eps=1e-3):
     return a > eps
 
 def ransac_homography_new(matches, kp1, kp2, threshold=5.0, max_iterations=2000, seed=0):
-    """
-    RANSAC propio para H (kp1 -> kp2).
-    - matches: lista de cv2.DMatch  (queryIdx en kp1, trainIdx en kp2)
-    Devuelve: H_final (mínimos cuadrados con TODOS los inliers) y los índices de inliers.
-    """
     random.seed(seed)
 
     # 1) Armar arrays de puntos
