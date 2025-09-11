@@ -244,15 +244,42 @@ def create_translation_matrix(offset_x, offset_y):
     ], dtype=np.float32)
 
 def create_distance_mask(img):
-    """Create a distance mask for blending"""
+    """Create a distance mask for blending - canvas edges only"""
     h, w = img.shape[:2]
     
-    # Create a mask that is 1 where image is non-zero
-    mask = np.zeros((h, w), dtype=np.uint8)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    mask[gray > 0] = 1
+    gray_final = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    # Use distance transform to create a weight mask
+    gray = np.where(gray > 0, 255, 0).astype(np.uint8)
+    gray_inv = np.where(gray == 0, 255, 0).astype(np.uint8)
+
+    num_labels, labels = cv2.connectedComponents(gray_inv)
+
+    #para las componentes conexas menores a 200.000 pixeles se gurdan las coordenadas de cada uno de esos pixeles
+    
+    small_components_coords = []
+    for label in range(1, num_labels):  # Skip background (label 0)
+        component_mask = (labels == label)
+        component_size = np.sum(component_mask)
+        
+        if component_size < 200000:
+            print(f"Componente {label} tiene {component_size} pixeles")
+            coords = np.where(component_mask)
+            small_components_coords.extend(list(zip(coords[1], coords[0])))  # (x, y) format
+    print("cantidad de componentes chicas", len(small_components_coords))
+
+    
+    for x, y in small_components_coords:
+        gray_final[y, x] = 1
+
+    # Simple binary mask: any non-black pixel
+    mask = (gray_final > 0).astype(np.uint8) 
+    
+    # Fill small holes (optional)
+    kernel = np.ones((3,3), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    
+    # Apply distance transform
     dist = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
     
     # Normalize to 0-1 range
@@ -372,6 +399,9 @@ def ransac_homography_new(matches, kp1, kp2, threshold=5.0, max_iterations=2000,
     if best_inliers.size < 4:
         print("RANSAC failed to find a consensus set ≥ 4.")
         return None, np.array([], dtype=int)
+    print(len(src_pts[best_inliers]))
+    print(src_pts[best_inliers])
+    print(dst_pts[best_inliers])
 
     # 3) Homografía FINAL con TODOS los inliers (mínimos cuadrados, sin RANSAC)
     H_final, _ = cv2.findHomography(src_pts[best_inliers], dst_pts[best_inliers], method=0)
