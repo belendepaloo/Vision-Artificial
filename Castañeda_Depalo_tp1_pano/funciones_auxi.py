@@ -317,15 +317,47 @@ def cross_check(matchesAB, matchesBA):
 
 # Función para dibujar los mejores N matches, ordenados por distancia
 def draw_top_matches(imgA, kpsA, imgB, kpsB, matches, title="", N=50):
-    """Dibuja top-N matches por distancia."""
+    """Dibuja top-N matches por distancia, adaptándose al tamaño de las imágenes."""
     matches = sorted(matches, key=lambda m: m.distance)[:N]
-    vis = cv2.drawMatches(imgA, kpsA, imgB, kpsB, matches, None, flags=2)
-    plt.figure(figsize=(16,6))
+    
+    # Get original image dimensions
+    h_A, w_A = imgA.shape[:2]
+    h_B, w_B = imgB.shape[:2]
+    
+    # Resize images to have the same height while maintaining aspect ratio
+    max_height = 800  # Set a reasonable max height for display
+    scale_A = max_height / h_A
+    scale_B = max_height / h_B
+    
+    # Resize images to common height
+    resized_A = cv2.resize(imgA, (int(w_A * scale_A), max_height))
+    resized_B = cv2.resize(imgB, (int(w_B * scale_B), max_height))
+    
+    # Scale keypoints to match resized images
+    scaled_kpsA = [cv2.KeyPoint(kp.pt[0] * scale_A, kp.pt[1] * scale_A, kp.size * scale_A, 
+                               kp.angle, kp.response, kp.octave, kp.class_id) for kp in kpsA]
+    scaled_kpsB = [cv2.KeyPoint(kp.pt[0] * scale_B, kp.pt[1] * scale_B, kp.size * scale_B, 
+                               kp.angle, kp.response, kp.octave, kp.class_id) for kp in kpsB]
+    
+    # Draw matches on resized images
+    vis = cv2.drawMatches(resized_A, scaled_kpsA, resized_B, scaled_kpsB, matches, None, flags=2)
+    
+    # Calculate figure size for display
+    fig_height = 10  # Fixed height in inches
+    total_width = resized_A.shape[1] + resized_B.shape[1]
+    aspect_ratio = total_width / max_height
+    fig_width = fig_height * aspect_ratio
+    
+    # Limit max width for display
+    max_fig_width = 20
+    if fig_width > max_fig_width:
+        fig_width = max_fig_width
+    
+    plt.figure(figsize=(fig_width, fig_height))
     plt.imshow(cv2.cvtColor(vis, cv2.COLOR_BGR2RGB))
     plt.title(f'Mejores {len(matches)} matches {title}')
     plt.axis('off')
     plt.show()
-
 
 
 
