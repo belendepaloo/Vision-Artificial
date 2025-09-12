@@ -310,7 +310,7 @@ def lowe_ratio_knn(descA, descB, ratio=0.75, norm=None):
     return good, raw
 
 # Función para hacer matching mutuo, devuelve sólo matches consistentes
-def mutual_consistency(matchesAB, matchesBA):
+def cross_check(matchesAB, matchesBA):
     """Conserva sólo A->B que estén confirmados por B->A."""
     back = {(m.queryIdx, m.trainIdx) for m in matchesBA}  # (idxB, idxA) en BA
     return [m for m in matchesAB if (m.trainIdx, m.queryIdx) in back]
