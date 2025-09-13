@@ -3,16 +3,65 @@ import cv2
 import matplotlib.pyplot as plt
 import random
 
-#ANMS: Adaptive Non-Maximal Suppression
+# ----- Metodo de Harris y Shi-Tomasi -----
+def find_corners(img, method='harris'):
+    useHarrisDetector = method=='harris'
+    img = np.float32(img)
+    corners = cv2.goodFeaturesToTrack(
+      img,
+      maxCorners=1000,
+      qualityLevel=0.05,
+      minDistance=11,
+      useHarrisDetector=useHarrisDetector
+    )
+
+    corners = corners.reshape(-1, 2)
+    return corners
+
+def plot_corners(imgs, method='harris'):
+    fig, axes = plt.subplots(1, len(imgs), figsize=(15, 5))
+    if len(imgs) == 1:
+        axes = [axes]
+
+    for i, img in enumerate(imgs):
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        corners = find_corners(gray, method=method)
+
+        axes[i].imshow(gray, cmap='gray')
+        axes[i].scatter(corners[:, 0], corners[:, 1], s=50, marker='+', color='red')
+        axes[i].axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+
+# ----- Procesameinto de Keypoints y Descriptores (3.2) -----
+def process_keypoints(img, sift, show=True):
+    keypoints, descriptors = sift.detectAndCompute(img, None)
+    keypoints_red = []
+    for kp in keypoints:
+        x, y = kp.pt
+        if False:
+            pass
+        else:
+            keypoints_red.append(kp)
+
+    pts = np.array([kp.pt for kp in keypoints_red])
+
+    if show:
+        plt.figure(figsize=(8, 6))
+        plt.imshow(np.ones(img.shape[:2]), cmap='gray')  # fondo blanco
+        plt.scatter(pts[:, 0], pts[:, 1], s=0.1, c='red')
+        plt.title("SIFT Keypoints (solo puntos)")
+        plt.axis('off')
+        plt.show()
+
+    return keypoints, descriptors, keypoints_red, pts
+
+# ------ ANMS -----
 def anms(keypoints, num_corners=500):
-    """
-    Implementación del ANMS real según el algoritmo del paper.
-    keypoints: lista de tuplas (x, y, response)
-    """
     if len(keypoints) <= num_corners:
         return np.array([[x, y] for (x, y, _) in keypoints])
-
-    # Inicializar radios a infinito
     radii = np.full(len(keypoints), np.inf)
 
     for i, (x_i, y_i, r_i) in enumerate(keypoints):
@@ -22,22 +71,16 @@ def anms(keypoints, num_corners=500):
                 if SD < radii[i]:
                     radii[i] = SD
 
-    # Obtener índices con mayor radio
     selected_indices = np.argsort(radii)[-num_corners:]
-
-    # Devolver coordenadas seleccionadas
     return np.array([[keypoints[i][0], keypoints[i][1]] for i in selected_indices])
 
-#Función para imprimir los keypoints ANMS
 def imprimir_anms(pts, img):
-    #Imprimo los keypoints SIFT antes y despues de ANMS
     print(f"Keypoints antes de ANMS: {len(pts)}")
-    keypoints_anms = anms(pts, num_corners=500)
+    keypoints_anms = anms(pts, num_corners = 500)
     print(f"Keypoints despues de ANMS: {len(keypoints_anms)}")
 
-    #Mostrar los puntos ANMS sobre fondo blanco
     plt.figure(figsize=(8, 6))
-    plt.imshow(img)  # fondo blanco
+    plt.imshow(img)
     plt.scatter(keypoints_anms[:, 0], keypoints_anms[:, 1], s=10, c='blue')
     plt.title("Keypoints despues de ANMS (solo puntos)")
     plt.axis('off')
@@ -45,8 +88,6 @@ def imprimir_anms(pts, img):
     return keypoints_anms
 
 def dlt(ori, dst):
-
-    # Construct matrix A and vector b
     A = []
     b = []
     for i in range(4):
@@ -59,23 +100,11 @@ def dlt(ori, dst):
 
     A = np.array(A)
     b = np.array(b)
-
-    # resolvemos el sistema de ecuaciones A * h = b
-    # el sistema es de 8x8, por lo que podemos resolverlo si A es inversible
-
-    # resuelve el sistema de ecuaciones para encontrar los parámetros de H
     H = -np.linalg.solve(A, b)
 
-    # agrega el elemento h_33
     H = np.hstack([H, [1]])
-
-    # reorganiza H para formar la matrix en 3x3 to form the 3x3 homography matrix
     H = H.reshape(3, 3)
-
     return H
-
-#Función para hacer match entre puntos ANMS y keypoints originales
-import numpy as np
 
 def match_pts_to_keypoints(pts_anms, keypoints_all, eps=1.5):
     """
